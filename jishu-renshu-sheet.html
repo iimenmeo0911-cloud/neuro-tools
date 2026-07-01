@@ -336,12 +336,13 @@
     .caution-imgs { display: flex; gap: 4px; margin-top: 6px; }
     .caution-imgs .ci {
       position: relative; flex: 1; min-width: 0;
-      background: #fce4ec; border-radius: 3px; overflow: hidden;
+      background: #fce4ec; border-radius: 3px; overflow: clip;
+      isolation: isolate;
     }
-    .caution-imgs .ci img { width: 100%; height: 38mm; object-fit: contain; display: block; }
+    .caution-imgs .ci img { width: 100%; height: 48mm; object-fit: contain; display: block; }
     .caution-imgs.single .ci { max-width: 60%; }
-    .caution-imgs.single .ci img { height: 46mm; }
-    .caution-imgs.triple .ci img { height: 30mm; }
+    .caution-imgs.single .ci img { height: 58mm; }
+    .caution-imgs.triple .ci img { height: 40mm; }
     .ci .pn-badge {
       background: #c62828; width: 20px; height: 20px; font-size: 11px;
       print-color-adjust: exact; -webkit-print-color-adjust: exact;
