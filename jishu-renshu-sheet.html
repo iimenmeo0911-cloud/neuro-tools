@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>自主練習シート 作成ツール | NEUROスタジオ</title>
   <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: '游ゴシック', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif; background: #e8eef0; color: #333; }
@@ -178,6 +177,7 @@
       width: 210mm; min-height: 297mm; background: #fff;
       box-shadow: 0 4px 20px rgba(0,0,0,0.2); padding: 10mm;
       font-family: '游ゴシック', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
+      print-color-adjust: exact; -webkit-print-color-adjust: exact;
     }
 
     /* header */
@@ -203,7 +203,10 @@
     }
 
     /* ---- photo num wrap (A4) ---- */
-    .pnw { position: relative; overflow: hidden; border-radius: 3px; background: #f4f4f4; }
+    .pnw {
+      position: relative; overflow: clip; border-radius: 3px; background: #f4f4f4;
+      isolation: isolate;
+    }
     .pnw img { width: 100%; height: 100%; object-fit: contain; display: block; }
     .pn-badge {
       position: absolute; bottom: 5px; left: 5px;
@@ -211,6 +214,7 @@
       width: 24px; height: 24px; font-size: 13px; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
       line-height: 1; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      print-color-adjust: exact; -webkit-print-color-adjust: exact;
     }
 
     /* grids */
@@ -288,8 +292,6 @@
     .s-footer .fi .val { font-size: 14px; }
     .s-footer .fi.big .val { font-size: 17px; font-weight: 700; color: #1a5c6b; }
     .brand { margin-left: auto; font-size: 11px; color: #bbb; font-style: italic; align-self: flex-end; }
-    .qr-area { text-align: center; }
-    .qr-area img { display: block; border: 1px solid #ddd; border-radius: 3px; }
     .s-placeholder { color: #ccc; font-style: italic; }
 
     /* caution photos (form) */
@@ -340,7 +342,10 @@
     .caution-imgs.single .ci { max-width: 60%; }
     .caution-imgs.single .ci img { height: 46mm; }
     .caution-imgs.triple .ci img { height: 30mm; }
-    .ci .pn-badge { background: #c62828; width: 20px; height: 20px; font-size: 11px; }
+    .ci .pn-badge {
+      background: #c62828; width: 20px; height: 20px; font-size: 11px;
+      print-color-adjust: exact; -webkit-print-color-adjust: exact;
+    }
     .caution-descs { list-style: none; padding: 0; margin-top: 5px; }
     .caution-descs li { display: flex; gap: 6px; font-size: 12px; line-height: 1.5; margin-bottom: 2px; align-items: baseline; }
     .caution-descs .nd { background: #c62828; width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
@@ -528,10 +533,6 @@
           <span class="val" id="s-tools">なし</span>
         </div>
         <div class="brand">NEUROスタジオ</div>
-        <div class="fi qr-area">
-          <span class="lbl">スマホで見る</span>
-          <img id="s-qr" width="72" height="72" alt="QR">
-        </div>
       </div>
 
     </div>
@@ -879,18 +880,6 @@ function update() {
 function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function escAttr(s) { return s.replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
 
-/* ===== QR CODE ===== */
-async function initQR() {
-  try {
-    const url = window.location.href;
-    const dataUrl = await QRCode.toDataURL(url, {
-      width: 144, margin: 1,
-      color: { dark: '#1a5c6b', light: '#ffffff' }
-    });
-    document.getElementById('s-qr').src = dataUrl;
-  } catch(e) {}
-}
-
 /* ===== PDF GUIDE ===== */
 function showPdfGuide() {
   document.getElementById('pdf-guide').classList.add('show');
@@ -903,7 +892,6 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closePdfGuid
 /* ===== INIT ===== */
 addPoint(); addPoint();
 update();
-initQR();
 </script>
 </body>
 </html>
