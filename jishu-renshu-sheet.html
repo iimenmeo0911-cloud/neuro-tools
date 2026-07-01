@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自主練習シート 作成ツール | NEUROスタジオ</title>
+  <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: '游ゴシック', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif; background: #e8eef0; color: #333; }
+
+    /* ===== APP LAYOUT ===== */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ===== LEFT PANE ===== */
+    .form-pane {
+      width: 400px; min-width: 340px;
+      background: #fff; border-right: 2px solid #dde4e6;
+      overflow-y: auto; padding: 18px 16px; flex-shrink: 0;
+    }
+    .form-pane h1 {
+      font-size: 13px; font-weight: 700; color: #1a5c6b;
+      margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #1a5c6b;
+    }
+    .field-group { margin-bottom: 12px; }
+    .field-group label {
+      display: block; font-size: 10px; font-weight: 700; color: #666;
+      margin-bottom: 3px; letter-spacing: 0.5px; text-transform: uppercase;
+    }
+    .field-group input[type="text"],
+    .field-group input[type="number"],
+    .field-group select,
+    .field-group textarea {
+      width: 100%; border: 1px solid #ccc; border-radius: 4px;
+      padding: 6px 9px; font-size: 12px; font-family: inherit; color: #333;
+      background: #fafafa; transition: border-color 0.15s;
+    }
+    .field-group input:focus, .field-group select:focus, .field-group textarea:focus {
+      outline: none; border-color: #1a5c6b; background: #fff;
+    }
+    .field-group textarea { resize: vertical; min-height: 52px; }
+    .inline-fields { display: flex; gap: 8px; }
+    .inline-fields .field-group { flex: 1; }
+
+    /* dynamic lists (points) */
+    .dynamic-list { display: flex; flex-direction: column; gap: 5px; }
+    .list-item { display: flex; align-items: center; gap: 5px; }
+    .item-num { font-size: 11px; font-weight: 700; color: #1a5c6b; width: 14px; flex-shrink: 0; text-align: center; }
+    .list-item input[type="text"] {
+      flex: 1; border: 1px solid #ccc; border-radius: 4px;
+      padding: 5px 7px; font-size: 12px; font-family: inherit;
+    }
+    .list-item input:focus { outline: none; border-color: #1a5c6b; }
+    .btn-remove {
+      background: none; border: none; color: #bbb; cursor: pointer;
+      font-size: 15px; line-height: 1; padding: 2px; flex-shrink: 0;
+    }
+    .btn-remove:hover { color: #e53935; }
+    .btn-add {
+      display: inline-flex; align-items: center; gap: 3px; margin-top: 5px;
+      background: none; border: 1px dashed #bbb; border-radius: 4px;
+      color: #888; font-size: 11px; padding: 4px 10px; cursor: pointer; font-family: inherit;
+    }
+    .btn-add:hover { border-color: #1a5c6b; color: #1a5c6b; }
+
+    /* ---- photo upload area ---- */
+    .upload-area {
+      border: 2px dashed #b0bec5; border-radius: 6px; padding: 12px;
+      text-align: center; cursor: pointer; background: #f8fafc;
+      transition: all 0.15s; user-select: none;
+    }
+    .upload-area:hover, .upload-area.drag-over { border-color: #1a5c6b; background: #e6f3f5; }
+    .upload-area .icon { font-size: 22px; }
+    .upload-area p { font-size: 11px; color: #999; margin-top: 3px; }
+    #photo-input { display: none; }
+    .warn { font-size: 11px; color: #e65100; margin-top: 4px; }
+
+    /* ---- photo rows (form) ---- */
+    .photo-rows { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+
+    .photo-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; border: 1px solid #e0e0e0; border-radius: 6px;
+      background: #fafafa;
+    }
+    .photo-row.dragging { opacity: 0.35; }
+    .photo-row.drag-target { border-color: #1a5c6b; border-style: dashed; background: #e6f3f5; }
+
+    .pr-drag {
+      color: #ccc; font-size: 16px; cursor: grab; flex-shrink: 0;
+      user-select: none; line-height: 1;
+    }
+    .pr-drag:active { cursor: grabbing; }
+
+    .pr-thumb {
+      position: relative; width: 54px; height: 54px;
+      flex-shrink: 0; border-radius: 4px; overflow: hidden;
+      border: 1px solid #ddd;
+    }
+    .pr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .pr-badge {
+      position: absolute; bottom: 3px; left: 3px;
+      background: #1a5c6b; color: #fff; border-radius: 50%;
+      width: 18px; height: 18px; font-size: 10px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1;
+    }
+
+    .pr-desc {
+      flex: 1; border: 1px solid #ddd; border-radius: 4px;
+      padding: 5px 8px; font-size: 12px; font-family: inherit;
+      background: #fff;
+    }
+    .pr-desc:focus { outline: none; border-color: #1a5c6b; }
+    .pr-desc::placeholder { color: #bbb; }
+
+    .pr-del {
+      background: none; border: none; color: #bbb; cursor: pointer;
+      font-size: 16px; flex-shrink: 0; padding: 2px; line-height: 1;
+    }
+    .pr-del:hover { color: #e53935; }
+
+    /* print button */
+    .btn-print {
+      width: 100%; margin-top: 18px; padding: 11px; background: #1a5c6b;
+      color: #fff; border: none; border-radius: 6px; font-size: 13px;
+      font-weight: 700; font-family: inherit; cursor: pointer;
+    }
+    .btn-print:hover { background: #134a57; }
+
+    /* PDF guide overlay */
+    .pdf-guide {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 1000;
+      align-items: center; justify-content: center;
+    }
+    .pdf-guide.show { display: flex; }
+    .pdf-guide-box {
+      background: #fff; border-radius: 12px; padding: 28px 32px;
+      max-width: 360px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      font-family: inherit;
+    }
+    .pdf-guide-box h3 { margin: 0 0 16px; font-size: 15px; color: #1a5c6b; }
+    .pdf-guide-steps { list-style: none; padding: 0; margin: 0 0 20px; }
+    .pdf-guide-steps li {
+      display: flex; gap: 12px; align-items: flex-start;
+      font-size: 13px; line-height: 1.6; margin-bottom: 10px;
+    }
+    .pdf-guide-steps .step-num {
+      background: #1a5c6b; color: #fff; border-radius: 50%;
+      width: 22px; height: 22px; font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .pdf-guide-note {
+      font-size: 11px; color: #888; background: #f5f5f5;
+      border-radius: 6px; padding: 8px 10px; margin-bottom: 18px; line-height: 1.6;
+    }
+    .pdf-guide-btn {
+      width: 100%; padding: 10px; background: #1a5c6b; color: #fff;
+      border: none; border-radius: 6px; font-size: 13px; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+    }
+    .pdf-guide-btn:hover { background: #134a57; }
+
+    /* ===== RIGHT PANE ===== */
+    .preview-pane {
+      flex: 1; background: #d8e4e8; overflow-y: auto;
+      display: flex; flex-direction: column; align-items: center; padding: 28px 20px;
+    }
+    .preview-label {
+      font-size: 10px; color: #7a8e94; margin-bottom: 10px;
+      letter-spacing: 1px; font-weight: 600;
+    }
+
+    /* ===== A4 SHEET ===== */
+    .a4 {
+      width: 210mm; min-height: 297mm; background: #fff;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2); padding: 10mm;
+      font-family: '游ゴシック', 'Hiragino Kaku Gothic Pro', 'Meiryo', sans-serif;
+    }
+
+    /* header */
+    .s-header {
+      background: #1a5c6b; color: #fff; padding: 9px 13px;
+      display: flex; justify-content: space-between; align-items: center;
+      border-radius: 4px; margin-bottom: 8px;
+    }
+    .s-title { font-size: 20px; font-weight: 700; flex: 1; }
+    .s-title.empty { font-size: 15px; font-style: italic; opacity: 0.4; }
+    .s-cat {
+      font-size: 12px; background: rgba(255,255,255,0.22);
+      padding: 3px 9px; border-radius: 20px; margin-left: 8px;
+      white-space: nowrap; display: none;
+    }
+
+    /* photo area */
+    .photo-area { margin-bottom: 8px; }
+    .photo-placeholder {
+      height: 72px; border: 2px dashed #ccc; border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      color: #bbb; font-size: 11px;
+    }
+
+    /* ---- photo num wrap (A4) ---- */
+    .pnw { position: relative; overflow: hidden; border-radius: 3px; background: #f4f4f4; }
+    .pnw img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .pn-badge {
+      position: absolute; bottom: 5px; left: 5px;
+      background: #1a5c6b; color: #fff; border-radius: 50%;
+      width: 24px; height: 24px; font-size: 13px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 1; box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+
+    /* grids */
+    .g1 { display: grid; grid-template-columns: 1fr; gap: 3px; }
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+    .g3 { display: grid; grid-template-columns: 3fr 2fr; gap: 3px; }
+    .g3-right { display: flex; flex-direction: column; gap: 3px; }
+    .g4 { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+    .gn { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; }
+    .g1 .pnw { height: 110mm; }
+    .g2 .pnw { height: 86mm; }
+    .g3 .pnw.main { height: 86mm; }
+    .g3 .pnw.sub  { height: 41mm; }
+    .g4 .pnw { height: 54mm; }
+    .gn .pnw { height: 42mm; }
+
+    /* sections */
+    .s-sec { margin-bottom: 7px; }
+    .s-sec-label {
+      font-size: 12px; font-weight: 700; color: #fff;
+      background: #4a8a96; display: inline-block;
+      padding: 2px 8px; border-radius: 3px; margin-bottom: 4px;
+    }
+    .s-sec p { font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+
+    /* photo descriptions (steps) in A4 */
+    .photo-descs { list-style: none; padding: 0; }
+    .photo-descs li {
+      display: flex; gap: 7px; font-size: 13px; line-height: 1.5;
+      margin-bottom: 3px; align-items: baseline;
+    }
+    .photo-descs .nd {
+      width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+      background: #1a5c6b; color: #fff; font-size: 11px; font-weight: 700;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+
+    /* extra steps (no photos) */
+    .s-steps { list-style: none; padding: 0; }
+    .s-steps li { display: flex; gap: 7px; font-size: 13px; line-height: 1.5; margin-bottom: 2px; }
+    .s-steps .num { font-weight: 700; color: #1a5c6b; min-width: 16px; }
+
+    /* point box */
+    .point-box {
+      background: #e8f5e9; border-left: 4px solid #2e7d32;
+      padding: 7px 10px; border-radius: 0 4px 4px 0; margin-bottom: 7px;
+    }
+    .point-box .lbl { font-size: 12px; font-weight: 700; color: #2e7d32; margin-bottom: 3px; }
+    .point-box ul { list-style: none; padding: 0; }
+    .point-box ul li { font-size: 13px; line-height: 1.5; padding-left: 12px; position: relative; }
+    .point-box ul li::before { content: '・'; position: absolute; left: 0; color: #2e7d32; }
+
+    /* advice box */
+    .advice-box {
+      background: #fff8e1; border-left: 4px solid #f9a825;
+      padding: 7px 10px; border-radius: 0 4px 4px 0; margin-bottom: 7px;
+    }
+    .advice-box .lbl { font-size: 12px; font-weight: 700; color: #f57f17; margin-bottom: 3px; }
+    .advice-box .body { font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+
+    /* caution box */
+    .caution-box {
+      background: #fce4ec; border-left: 4px solid #c62828;
+      padding: 7px 10px; border-radius: 0 4px 4px 0; margin-bottom: 7px;
+    }
+    .caution-box .lbl { font-size: 12px; font-weight: 700; color: #c62828; margin-bottom: 3px; }
+    .caution-box .body { font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+
+    /* footer */
+    .s-footer {
+      border-top: 2px solid #1a5c6b; padding-top: 7px;
+      display: flex; gap: 18px; align-items: flex-end; flex-wrap: wrap;
+    }
+    .s-footer .fi .lbl { font-size: 12px; font-weight: 700; color: #1a5c6b; display: block; }
+    .s-footer .fi .val { font-size: 14px; }
+    .s-footer .fi.big .val { font-size: 17px; font-weight: 700; color: #1a5c6b; }
+    .brand { margin-left: auto; font-size: 11px; color: #bbb; font-style: italic; align-self: flex-end; }
+    .qr-area { text-align: center; }
+    .qr-area img { display: block; border: 1px solid #ddd; border-radius: 3px; }
+    .s-placeholder { color: #ccc; font-style: italic; }
+
+    /* caution photos (form) */
+    .caution-upload {
+      margin-top: 6px; border: 1px dashed #f48fb1; border-radius: 5px;
+      padding: 8px 10px; background: #fff8fa; cursor: pointer;
+      font-size: 11px; color: #c2185b; text-align: center;
+      transition: all 0.15s;
+    }
+    .caution-upload:hover { background: #fce4ec; border-color: #c2185b; }
+    #caution-photo-input { display: none; }
+    .caution-rows { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+    .caution-row {
+      display: flex; align-items: center; gap: 7px;
+      padding: 5px 7px; border: 1px solid #f8bbd0; border-radius: 6px; background: #fff8fa;
+    }
+    .caution-row.dragging { opacity: 0.35; }
+    .caution-row.drag-target { border-color: #c2185b; border-style: dashed; background: #fce4ec; }
+    .cr-drag { color: #f48fb1; font-size: 14px; cursor: grab; flex-shrink: 0; user-select: none; }
+    .cr-drag:active { cursor: grabbing; }
+    .cr-thumb {
+      position: relative; width: 48px; height: 48px; flex-shrink: 0;
+      border-radius: 4px; overflow: hidden; border: 1px solid #f48fb1;
+    }
+    .cr-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cr-badge {
+      position: absolute; bottom: 2px; left: 2px;
+      background: #c62828; color: #fff; border-radius: 50%;
+      width: 16px; height: 16px; font-size: 9px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cr-desc {
+      flex: 1; border: 1px solid #f8bbd0; border-radius: 4px;
+      padding: 5px 7px; font-size: 12px; font-family: inherit; background: #fff;
+    }
+    .cr-desc:focus { outline: none; border-color: #c2185b; }
+    .cr-desc::placeholder { color: #f4a; }
+    .cr-del { background: none; border: none; color: #f4a; cursor: pointer; font-size: 15px; flex-shrink: 0; }
+    .cr-del:hover { color: #c62828; }
+
+    /* caution photos (A4) */
+    .caution-imgs { display: flex; gap: 4px; margin-top: 6px; }
+    .caution-imgs .ci {
+      position: relative; flex: 1; min-width: 0;
+      background: #fce4ec; border-radius: 3px; overflow: hidden;
+    }
+    .caution-imgs .ci img { width: 100%; height: 38mm; object-fit: contain; display: block; }
+    .caution-imgs.single .ci { max-width: 60%; }
+    .caution-imgs.single .ci img { height: 46mm; }
+    .caution-imgs.triple .ci img { height: 30mm; }
+    .ci .pn-badge { background: #c62828; width: 20px; height: 20px; font-size: 11px; }
+    .caution-descs { list-style: none; padding: 0; margin-top: 5px; }
+    .caution-descs li { display: flex; gap: 6px; font-size: 12px; line-height: 1.5; margin-bottom: 2px; align-items: baseline; }
+    .caution-descs .nd { background: #c62828; width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; color: #fff; font-size: 10px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+
+    /* ===== PRINT ===== */
+    @media print {
+      @page { size: A4; margin: 10mm; }
+      body { background: #fff !important; }
+      .form-pane, .preview-label, .pdf-guide { display: none !important; }
+      .app { display: block; height: auto; }
+      .preview-pane { background: none; padding: 0; display: block; overflow: visible; }
+      .a4 { box-shadow: none; width: 100%; min-height: auto; padding: 0; }
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 768px) {
+      .app { flex-direction: column; height: auto; overflow: visible; }
+      .form-pane { width: 100%; border-right: none; border-bottom: 2px solid #dde; }
+      .preview-pane { padding: 16px 8px; }
+      .a4 { width: 100%; min-height: auto; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ===== FORM ===== -->
+  <div class="form-pane">
+    <h1>📋 自主練習シート 作成ツール</h1>
+
+    <!-- Photos -->
+    <div class="field-group">
+      <label>写真（PNG・JPG等 / 複数可 / ドラッグで並び替え）</label>
+      <div class="upload-area" id="drop-zone" onclick="document.getElementById('photo-input').click()">
+        <div class="icon">📷</div>
+        <p>クリック or ドロップで写真を追加</p>
+      </div>
+      <input type="file" id="photo-input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/bmp,image/heic,image/heif,.heic,.heif,.HEIC,.HEIF" multiple>
+      <div class="photo-rows" id="photo-rows"></div>
+      <div class="warn" id="photo-warn" style="display:none">⚠ 5枚以上は印刷時に写真が小さくなります</div>
+    </div>
+
+    <!-- Title -->
+    <div class="field-group">
+      <label>練習名 *</label>
+      <input type="text" id="f-title" placeholder="例：踵挙上" oninput="update()">
+    </div>
+
+    <!-- Category -->
+    <div class="field-group">
+      <label>カテゴリ</label>
+      <select id="f-cat" onchange="update()">
+        <option value="">―</option>
+        <option>ベッド端座位</option>
+        <option>車椅子座位</option>
+        <option>臥位</option>
+        <option>立位</option>
+        <option>その他</option>
+      </select>
+    </div>
+
+    <!-- Posture -->
+    <div class="field-group">
+      <label>姿勢・準備</label>
+      <textarea id="f-posture" rows="2" placeholder="例：ブレーキを止め、足を床につける" oninput="update()"></textarea>
+    </div>
+
+    <!-- Points -->
+    <div class="field-group">
+      <label>目的（POINT）</label>
+      <div class="dynamic-list" id="points-list"></div>
+      <button class="btn-add" onclick="addPoint()">＋ 目的を追加</button>
+    </div>
+
+    <!-- Advice -->
+    <div class="field-group">
+      <label>アドバイス ★</label>
+      <textarea id="f-advice" rows="3" placeholder="臨床的根拠など" oninput="update()"></textarea>
+    </div>
+
+    <!-- Caution -->
+    <div class="field-group">
+      <label>注意点 ⚠</label>
+      <textarea id="f-caution" rows="2" placeholder="気をつける点・悪い例など" oninput="update()"></textarea>
+      <div class="caution-upload" onclick="document.getElementById('caution-photo-input').click()">
+        📎 注意点の画像を追加（良い例・悪い例など）
+      </div>
+      <input type="file" id="caution-photo-input" accept="image/png,image/jpeg,image/jpg,image/gif,image/webp,image/bmp,image/heic,image/heif,.heic,.heif,.HEIC,.HEIF" multiple>
+      <div class="caution-rows" id="caution-rows"></div>
+    </div>
+
+    <!-- Reps / Sets -->
+    <div class="inline-fields">
+      <div class="field-group">
+        <label>回数</label>
+        <input type="number" id="f-reps" placeholder="10" min="1" oninput="update()">
+      </div>
+      <div class="field-group">
+        <label>セット</label>
+        <input type="number" id="f-sets" placeholder="3" min="1" oninput="update()">
+      </div>
+    </div>
+
+    <!-- Freq / Tools -->
+    <div class="inline-fields">
+      <div class="field-group">
+        <label>頻度</label>
+        <input type="text" id="f-freq" value="1日1回" oninput="update()">
+      </div>
+      <div class="field-group">
+        <label>道具</label>
+        <input type="text" id="f-tools" value="なし" oninput="update()">
+      </div>
+    </div>
+
+    <button class="btn-print" onclick="showPdfGuide()">📄 PDFで保存 / 印刷</button>
+  </div>
+
+  <!-- PDF guide overlay -->
+  <div class="pdf-guide" id="pdf-guide" onclick="if(event.target===this)closePdfGuide()">
+    <div class="pdf-guide-box">
+      <h3>📄 PDFとして保存する手順</h3>
+      <ol class="pdf-guide-steps">
+        <li><span class="step-num">1</span><span>「OK」を押すと印刷ダイアログが開きます</span></li>
+        <li><span class="step-num">2</span><span>送信先（Destination）を <strong>「PDFに保存」</strong> に変更します</span></li>
+        <li><span class="step-num">3</span><span><strong>「保存」</strong> をクリックしてファイルを保存します</span></li>
+      </ol>
+      <p class="pdf-guide-note">💡 Macの場合は「プリント」ダイアログ左下の <strong>「PDF ▼」</strong> → 「PDFとして保存」でも保存できます</p>
+      <button class="pdf-guide-btn" onclick="closePdfGuide(); window.print()">OK — 印刷ダイアログを開く</button>
+    </div>
+  </div>
+
+  <!-- ===== PREVIEW ===== -->
+  <div class="preview-pane">
+    <div class="preview-label">▼ A4 プレビュー（リアルタイム更新）</div>
+    <div class="a4" id="a4">
+
+      <div class="s-header">
+        <div class="s-title empty" id="s-title">練習名を入力してください</div>
+        <div class="s-cat" id="s-cat"></div>
+      </div>
+
+      <div class="photo-area" id="s-photos">
+        <div class="photo-placeholder">📷 写真を追加するとここに表示されます</div>
+      </div>
+
+      <div class="s-sec">
+        <span class="s-sec-label">姿勢・準備</span>
+        <p id="s-posture" class="s-placeholder">姿勢・準備を入力してください</p>
+      </div>
+
+      <div class="s-sec" id="sw-photo-descs" style="display:none">
+        <span class="s-sec-label">手順</span>
+        <ul class="photo-descs" id="s-photo-descs"></ul>
+      </div>
+
+      <div class="point-box">
+        <div class="lbl">■ POINT</div>
+        <ul id="s-points"><li class="s-placeholder">目的を入力してください</li></ul>
+      </div>
+
+      <div class="advice-box">
+        <div class="lbl">★ アドバイス</div>
+        <div class="body s-placeholder" id="s-advice">アドバイスを入力してください</div>
+      </div>
+
+      <div class="caution-box">
+        <div class="lbl">⚠ 注意点</div>
+        <div class="body s-placeholder" id="s-caution">注意点を入力してください</div>
+        <div class="caution-imgs" id="s-caution-imgs" style="display:none"></div>
+        <ul class="caution-descs" id="s-caution-descs" style="display:none"></ul>
+      </div>
+
+      <div class="s-footer">
+        <div class="fi big">
+          <span class="lbl">回数・セット</span>
+          <span class="val" id="s-reps">（　）回 × （　）セット</span>
+        </div>
+        <div class="fi">
+          <span class="lbl">頻度</span>
+          <span class="val" id="s-freq">1日1回</span>
+        </div>
+        <div class="fi">
+          <span class="lbl">道具</span>
+          <span class="val" id="s-tools">なし</span>
+        </div>
+        <div class="brand">NEUROスタジオ</div>
+        <div class="fi qr-area">
+          <span class="lbl">スマホで見る</span>
+          <img id="s-qr" width="72" height="72" alt="QR">
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== STATE ===== */
+let photos = []; // { src, id, desc }
+let cautionPhotos = []; // { src, id }
+let dragSrc = null;
+const NUMS = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩'];
+
+/* ===== PHOTO UPLOAD ===== */
+const photoInput = document.getElementById('photo-input');
+const dropZone   = document.getElementById('drop-zone');
+
+photoInput.addEventListener('change', e => { loadFiles(e.target.files); photoInput.value = ''; });
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  loadFiles(e.dataTransfer.files);
+});
+
+async function loadFiles(files) {
+  for (const f of Array.from(files)) {
+    const isHeic = f.type === 'image/heic' || f.type === 'image/heif'
+                || /\.(heic|heif)$/i.test(f.name);
+    if (!f.type.startsWith('image/') && !isHeic) continue;
+
+    let blob = f;
+    if (isHeic) {
+      try {
+        const converted = await heic2any({ blob: f, toType: 'image/jpeg', quality: 0.85 });
+        blob = Array.isArray(converted) ? converted[0] : converted;
+      } catch (e) {
+        alert(`HEICの変換に失敗しました: ${f.name}`);
+        continue;
+      }
+    }
+
+    await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = e => {
+        photos.push({ src: e.target.result, id: uid(), desc: '' });
+        renderPhotoRows();
+        update();
+        resolve();
+      };
+      r.readAsDataURL(blob);
+    });
+  }
+}
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
+
+function removePhoto(id) {
+  photos = photos.filter(p => p.id !== id);
+  renderPhotoRows();
+  update();
+}
+
+function setPhotoDesc(id, val) {
+  const p = photos.find(p => p.id === id);
+  if (p) p.desc = val;
+  update();
+}
+
+/* ===== RENDER PHOTO ROWS (form) ===== */
+function renderPhotoRows() {
+  const container = document.getElementById('photo-rows');
+  container.innerHTML = '';
+
+  photos.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'photo-row';
+    row.draggable = true;
+    row.dataset.id = p.id;
+
+    row.innerHTML = `
+      <span class="pr-drag">⠿</span>
+      <div class="pr-thumb">
+        <img src="${p.src}" alt="photo${i+1}">
+        <span class="pr-badge">${NUMS[i] || i+1}</span>
+      </div>
+      <input class="pr-desc" type="text" placeholder="この写真の説明ポイント…"
+        value="${escAttr(p.desc)}"
+        oninput="setPhotoDesc('${p.id}', this.value)">
+      <button class="pr-del" onclick="removePhoto('${p.id}')">×</button>
+    `;
+
+    /* drag handlers */
+    row.addEventListener('dragstart', () => { dragSrc = i; row.classList.add('dragging'); });
+    row.addEventListener('dragend',   () => {
+      row.classList.remove('dragging');
+      container.querySelectorAll('.photo-row').forEach(r => r.classList.remove('drag-target'));
+    });
+    row.addEventListener('dragover',  e => { e.preventDefault(); row.classList.add('drag-target'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-target'));
+    row.addEventListener('drop', e => {
+      e.preventDefault(); row.classList.remove('drag-target');
+      if (dragSrc === null || dragSrc === i) return;
+      const moved = photos.splice(dragSrc, 1)[0];
+      photos.splice(i, 0, moved);
+      renderPhotoRows();
+      update();
+    });
+
+    container.appendChild(row);
+  });
+
+  document.getElementById('photo-warn').style.display = photos.length >= 5 ? 'block' : 'none';
+}
+
+/* ===== RENDER PHOTO GRID (A4) ===== */
+function renderPhotoGrid() {
+  const area = document.getElementById('s-photos');
+  const n = photos.length;
+
+  if (n === 0) {
+    area.innerHTML = '<div class="photo-placeholder">📷 写真を追加するとここに表示されます</div>';
+    return;
+  }
+
+  function wrap(p, i, cls='') {
+    return `<div class="pnw${cls ? ' '+cls : ''}"><img src="${p.src}" alt="photo${i+1}"><div class="pn-badge">${NUMS[i]||i+1}</div></div>`;
+  }
+
+  let html = '';
+  if (n === 1) {
+    html = `<div class="g1">${wrap(photos[0],0)}</div>`;
+  } else if (n === 2) {
+    html = `<div class="g2">${photos.map((p,i)=>wrap(p,i)).join('')}</div>`;
+  } else if (n === 3) {
+    html = `<div class="g3">${wrap(photos[0],0,'main')}<div class="g3-right">${wrap(photos[1],1,'sub')}${wrap(photos[2],2,'sub')}</div></div>`;
+  } else if (n === 4) {
+    html = `<div class="g4">${photos.map((p,i)=>wrap(p,i)).join('')}</div>`;
+  } else {
+    html = `<div class="gn">${photos.map((p,i)=>wrap(p,i)).join('')}</div>`;
+  }
+  area.innerHTML = html;
+}
+
+/* ===== RENDER PHOTO DESCRIPTIONS (A4) ===== */
+function renderPhotoDescs() {
+  const items = photos.filter(p => p.desc.trim());
+  const wrap = document.getElementById('sw-photo-descs');
+  const list = document.getElementById('s-photo-descs');
+
+  if (items.length === 0) { wrap.style.display = 'none'; return; }
+
+  list.innerHTML = photos.map((p, i) => {
+    if (!p.desc.trim()) return '';
+    return `<li><span class="nd">${NUMS[i]||i+1}</span><span>${escHtml(p.desc)}</span></li>`;
+  }).join('');
+  wrap.style.display = 'block';
+}
+
+/* ===== CAUTION PHOTOS ===== */
+let cautionDragSrc = null;
+
+document.getElementById('caution-photo-input').addEventListener('change', e => {
+  loadCautionFiles(e.target.files); e.target.value = '';
+});
+
+async function loadCautionFiles(files) {
+  for (const f of Array.from(files)) {
+    const isHeic = f.type === 'image/heic' || f.type === 'image/heif' || /\.(heic|heif)$/i.test(f.name);
+    if (!f.type.startsWith('image/') && !isHeic) continue;
+    let blob = f;
+    if (isHeic) {
+      try {
+        const converted = await heic2any({ blob: f, toType: 'image/jpeg', quality: 0.85 });
+        blob = Array.isArray(converted) ? converted[0] : converted;
+      } catch(e) { continue; }
+    }
+    await new Promise(resolve => {
+      const r = new FileReader();
+      r.onload = e => {
+        cautionPhotos.push({ src: e.target.result, id: uid(), desc: '' });
+        renderCautionRows(); update(); resolve();
+      };
+      r.readAsDataURL(blob);
+    });
+  }
+}
+
+function removeCautionPhoto(id) {
+  cautionPhotos = cautionPhotos.filter(p => p.id !== id);
+  renderCautionRows(); update();
+}
+
+function setCautionDesc(id, val) {
+  const p = cautionPhotos.find(p => p.id === id);
+  if (p) p.desc = val;
+  update();
+}
+
+function renderCautionRows() {
+  const container = document.getElementById('caution-rows');
+  container.innerHTML = '';
+  cautionPhotos.forEach((p, i) => {
+    const row = document.createElement('div');
+    row.className = 'caution-row';
+    row.draggable = true;
+    row.innerHTML = `
+      <span class="cr-drag">⠿</span>
+      <div class="cr-thumb">
+        <img src="${p.src}">
+        <span class="cr-badge">${NUMS[i] || i+1}</span>
+      </div>
+      <input class="cr-desc" type="text" placeholder="この写真の説明ポイント…"
+        value="${escAttr(p.desc)}"
+        oninput="setCautionDesc('${p.id}', this.value)">
+      <button class="cr-del" onclick="removeCautionPhoto('${p.id}')">×</button>
+    `;
+    row.addEventListener('dragstart', () => { cautionDragSrc = i; row.classList.add('dragging'); });
+    row.addEventListener('dragend',   () => {
+      row.classList.remove('dragging');
+      container.querySelectorAll('.caution-row').forEach(r => r.classList.remove('drag-target'));
+    });
+    row.addEventListener('dragover',  e => { e.preventDefault(); row.classList.add('drag-target'); });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-target'));
+    row.addEventListener('drop', e => {
+      e.preventDefault(); row.classList.remove('drag-target');
+      if (cautionDragSrc === null || cautionDragSrc === i) return;
+      const moved = cautionPhotos.splice(cautionDragSrc, 1)[0];
+      cautionPhotos.splice(i, 0, moved);
+      renderCautionRows(); update();
+    });
+    container.appendChild(row);
+  });
+}
+
+function renderCautionImgs() {
+  const imgArea  = document.getElementById('s-caution-imgs');
+  const descArea = document.getElementById('s-caution-descs');
+  const n = cautionPhotos.length;
+
+  if (n === 0) {
+    imgArea.style.display = 'none';
+    descArea.style.display = 'none';
+    return;
+  }
+
+  // photos with badges
+  const cls = n === 1 ? 'caution-imgs single' : n >= 3 ? 'caution-imgs triple' : 'caution-imgs';
+  imgArea.className = cls;
+  imgArea.innerHTML = cautionPhotos.map((p, i) =>
+    `<div class="ci"><img src="${p.src}"><div class="pn-badge">${NUMS[i]||i+1}</div></div>`
+  ).join('');
+  imgArea.style.display = 'flex';
+
+  // description list
+  const descs = cautionPhotos.filter(p => p.desc.trim());
+  if (descs.length) {
+    descArea.innerHTML = cautionPhotos.map((p, i) => {
+      if (!p.desc.trim()) return '';
+      return `<li><span class="nd">${NUMS[i]||i+1}</span><span>${escHtml(p.desc)}</span></li>`;
+    }).join('');
+    descArea.style.display = 'block';
+  } else {
+    descArea.style.display = 'none';
+  }
+}
+
+/* ===== DYNAMIC LISTS ===== */
+let pc = 0;
+
+function addPoint(v='') {
+  pc++;
+  const id = `p${pc}`;
+  const row = document.createElement('div');
+  row.className = 'list-item'; row.id = `row-${id}`;
+  row.innerHTML = `<span class="item-num">・</span><input type="text" id="${id}" placeholder="目的の内容" value="${escAttr(v)}" oninput="update()"><button class="btn-remove" onclick="rmRow('row-${id}');update()">×</button>`;
+  document.getElementById('points-list').appendChild(row);
+  update();
+}
+
+function rmRow(id) { const el = document.getElementById(id); if (el) el.remove(); }
+
+function getList(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} .list-item input`)).map(i => i.value.trim()).filter(Boolean);
+}
+
+/* ===== UPDATE PREVIEW ===== */
+function update() {
+  const title   = document.getElementById('f-title').value.trim();
+  const cat     = document.getElementById('f-cat').value;
+  const posture = document.getElementById('f-posture').value.trim();
+  const advice  = document.getElementById('f-advice').value.trim();
+  const caution = document.getElementById('f-caution').value.trim();
+  const reps    = document.getElementById('f-reps').value;
+  const sets    = document.getElementById('f-sets').value;
+  const freq    = document.getElementById('f-freq').value.trim();
+  const tools   = document.getElementById('f-tools').value.trim();
+  const points  = getList('points-list');
+
+  // title
+  const te = document.getElementById('s-title');
+  if (title) { te.textContent = title; te.className = 's-title'; }
+  else { te.textContent = '練習名を入力してください'; te.className = 's-title empty'; }
+
+  // category
+  const ce = document.getElementById('s-cat');
+  if (cat) { ce.textContent = cat; ce.style.display = 'inline-block'; }
+  else { ce.style.display = 'none'; }
+
+  // photos + descriptions
+  renderPhotoGrid();
+  renderPhotoDescs();
+
+  // posture（常時表示）
+  const pe = document.getElementById('s-posture');
+  pe.textContent = posture || '姿勢・準備を入力してください';
+  pe.className   = posture ? '' : 's-placeholder';
+
+  // points（常時表示）
+  const pointsEl = document.getElementById('s-points');
+  if (points.length) {
+    pointsEl.innerHTML = points.map(p => `<li>${escHtml(p)}</li>`).join('');
+  } else {
+    pointsEl.innerHTML = '<li class="s-placeholder">目的を入力してください</li>';
+  }
+
+  // advice（常時表示）
+  const ae = document.getElementById('s-advice');
+  ae.textContent = advice || 'アドバイスを入力してください';
+  ae.className   = advice ? 'body' : 'body s-placeholder';
+
+  // caution（常時表示）
+  const cae = document.getElementById('s-caution');
+  cae.textContent = caution || '注意点を入力してください';
+  cae.className   = caution ? 'body' : 'body s-placeholder';
+  renderCautionImgs();
+
+  // footer
+  document.getElementById('s-reps').textContent =
+    (reps || sets) ? `（${reps||'　'}）回 × （${sets||'　'}）セット` : '（　）回 × （　）セット';
+  document.getElementById('s-freq').textContent  = freq  || '1日1回';
+  document.getElementById('s-tools').textContent = tools || 'なし';
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s) { return s.replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+/* ===== QR CODE ===== */
+async function initQR() {
+  try {
+    const url = window.location.href;
+    const dataUrl = await QRCode.toDataURL(url, {
+      width: 144, margin: 1,
+      color: { dark: '#1a5c6b', light: '#ffffff' }
+    });
+    document.getElementById('s-qr').src = dataUrl;
+  } catch(e) {}
+}
+
+/* ===== PDF GUIDE ===== */
+function showPdfGuide() {
+  document.getElementById('pdf-guide').classList.add('show');
+}
+function closePdfGuide() {
+  document.getElementById('pdf-guide').classList.remove('show');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePdfGuide(); });
+
+/* ===== INIT ===== */
+addPoint(); addPoint();
+update();
+initQR();
+</script>
+</body>
+</html>
